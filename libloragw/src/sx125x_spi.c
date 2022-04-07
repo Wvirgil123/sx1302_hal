@@ -61,11 +61,11 @@ License: Revised BSD License, see LICENSE.TXT file include in the project
 /* Simple read */
 int sx125x_spi_r(void *com_target, uint8_t spi_mux_target, uint8_t address, uint8_t *data) {
     int com_device;
-    uint8_t out_buf[3];
-    uint8_t command_size;
-    uint8_t in_buf[ARRAY_SIZE(out_buf)];
-    struct spi_ioc_transfer k;
-    int a;
+    int cmd_size = 2; /* header + op_code + NOP */
+    uint8_t out_buf[cmd_size];
+    struct spi_ioc_transfer k[2];
+    int a = 0;
+    uint8_t temp = 0;
 
     /* check input variables */
     CHECK_NULL(com_target);
@@ -76,24 +76,25 @@ int sx125x_spi_r(void *com_target, uint8_t spi_mux_target, uint8_t address, uint
     /* prepare frame to be sent */
     out_buf[0] = spi_mux_target;
     out_buf[1] = READ_ACCESS | (address & 0x7F);
-    out_buf[2] = 0x00;
-    command_size = 3;
 
     /* I/O transaction */
     memset(&k, 0, sizeof(k)); /* clear k */
-    k.tx_buf = (unsigned long) out_buf;
-    k.rx_buf = (unsigned long) in_buf;
-    k.len = command_size;
-    k.cs_change = 0;
-    a = ioctl(com_device, SPI_IOC_MESSAGE(1), &k);
 
+    k[0].tx_buf =(unsigned long) out_buf;
+    k[0].len = cmd_size;
+    k[0].cs_change = 0;
+
+    k[1].rx_buf =(unsigned long) temp;
+    k[1].len = 1;
+    k[1].cs_change = 0;
+
+    a = ioctl(com_device, SPI_IOC_MESSAGE(2), &k);
     /* determine return code */
-    if (a != (int)k.len) {
+    if (a != (1+cmd_size)) {
         DEBUG_MSG("ERROR: SPI READ FAILURE\n");
         return LGW_SPI_ERROR;
     } else {
-        //DEBUG_MSG("Note: SPI read success\n");
-        *data = in_buf[command_size - 1];
+        *data = temp;
         return LGW_SPI_SUCCESS;
     }
 }
